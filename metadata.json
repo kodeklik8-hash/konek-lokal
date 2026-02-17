@@ -1,0 +1,7 @@
+{
+  "name": "Konek LOKAL",
+  "description": "Cepat Tanggap, Cepat Terhubung - Direktori layanan publik dan bisnis lokal untuk akses darurat dan informasi harian.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
