@@ -1,128 +1,131 @@
 
-import { Business, Report, Broadcast, CategoryType } from './types';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { Business, Report, Broadcast } from './types';
 
-const DB_KEY_BUSINESSES = 'koneklokal_businesses';
-const DB_KEY_REPORTS = 'koneklokal_reports';
-const DB_KEY_BROADCASTS = 'koneklokal_broadcasts';
+// Access environment variables
+// Note: Vercel/Vite uses process.env or import.meta.env depending on the build tool.
+// We check multiple common locations to ensure compatibility.
+const supabaseUrl = process.env.VITE_SUPABASE_URL || (window as any).env?.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || (window as any).env?.VITE_SUPABASE_ANON_KEY;
 
-const INITIAL_BUSINESSES: Business[] = [
-  {
-    id: '1',
-    name: 'Damkar Sanggau',
-    category: 'DARURAT',
-    subCategory: 'Damkar',
-    description: 'Layanan Pemadam Kebakaran Sanggau 24 Jam.',
-    phone: '056421113',
-    whatsapp: '6289684398391',
-    operatingHours: '24 Jam',
-    locationLink: '',
-    province: 'Kalimantan Barat',
-    city: 'Sanggau',
-    district: 'Kapuas',
-    address: 'Jl. Jend. Sudirman',
-    tags: ['24 Jam', 'Gratis'],
-    isEmergency: true,
-    isVerified: true,
-    clickCount: 0,
-    createdAt: Date.now()
-  },
-  {
-    id: '2',
-    name: 'Polres Sanggau',
-    category: 'DARURAT',
-    subCategory: 'Polisi',
-    description: 'Kepolisian Resor Sanggau melayani pengaduan masyarakat.',
-    phone: '110',
-    whatsapp: '6289684398391',
-    operatingHours: '24 Jam',
-    locationLink: '',
-    province: 'Kalimantan Barat',
-    city: 'Sanggau',
-    district: 'Kapuas',
-    address: 'Jl. Jend. Sudirman',
-    tags: ['Polisi', 'Aman'],
-    isEmergency: true,
-    isVerified: true,
-    clickCount: 0,
-    createdAt: Date.now()
-  }
-];
+// Initialize Supabase only if keys are present to avoid "supabaseUrl is required" error
+export const supabase: SupabaseClient | null = (supabaseUrl && supabaseAnonKey) 
+  ? createClient(supabaseUrl, supabaseAnonKey) 
+  : null;
+
+if (!supabase) {
+  console.warn("Konek LOKAL: Supabase configuration (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) is missing. Application is running in offline-limited mode.");
+}
 
 export const dbService = {
-  getBusinesses: (): Business[] => {
-    const data = localStorage.getItem(DB_KEY_BUSINESSES);
-    if (!data) {
-      localStorage.setItem(DB_KEY_BUSINESSES, JSON.stringify(INITIAL_BUSINESSES));
-      return INITIAL_BUSINESSES;
+  getBusinesses: async (): Promise<Business[]> => {
+    if (!supabase) return [];
+    
+    const { data, error } = await supabase
+      .from('businesses')
+      .select('*')
+      .order('name', { ascending: true });
+    
+    if (error) {
+      console.error("Error fetching businesses:", error);
+      return [];
     }
-    return JSON.parse(data);
+    
+    return (data as any[]).map(b => ({
+      ...b,
+      subCategory: b.sub_category,
+      operatingHours: b.operating_hours,
+      locationLink: b.location_link,
+      isEmergency: b.is_emergency,
+      isVerified: b.is_verified,
+      clickCount: b.click_count,
+      createdAt: new Date(b.created_at).getTime()
+    }));
   },
   
-  saveBusiness: (business: Business) => {
-    const businesses = dbService.getBusinesses();
-    const index = businesses.findIndex(b => b.id === business.id);
-    if (index >= 0) {
-      businesses[index] = business;
-    } else {
-      businesses.push(business);
-    }
-    localStorage.setItem(DB_KEY_BUSINESSES, JSON.stringify(businesses));
-  },
+  saveBusiness: async (business: any) => {
+    if (!supabase) throw new Error("Database not connected");
 
-  deleteBusiness: (id: string) => {
-    const businesses = dbService.getBusinesses().filter(b => b.id !== id);
-    localStorage.setItem(DB_KEY_BUSINESSES, JSON.stringify(businesses));
-  },
-
-  getReports: (): Report[] => {
-    const data = localStorage.getItem(DB_KEY_REPORTS);
-    return data ? JSON.parse(data) : [];
-  },
-
-  addReport: (report: Omit<Report, 'id' | 'createdAt' | 'status'>) => {
-    const reports = dbService.getReports();
-    const newReport: Report = {
-      ...report,
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: Date.now(),
-      status: 'PENDING'
+    const payload = {
+      name: business.name,
+      category: business.category,
+      sub_category: business.subCategory,
+      description: business.description,
+      phone: business.phone,
+      whatsapp: business.whatsapp,
+      operating_hours: business.operatingHours,
+      location_link: business.locationLink,
+      province: business.province,
+      city: business.city,
+      district: business.district,
+      address: business.address,
+      tags: business.tags || [],
+      is_emergency: business.isEmergency,
+      is_verified: business.isVerified
     };
-    reports.push(newReport);
-    localStorage.setItem(DB_KEY_REPORTS, JSON.stringify(reports));
+
+    const { error } = await supabase.from('businesses').insert([payload]);
+    if (error) throw error;
   },
 
-  resolveReport: (id: string) => {
-    const reports = dbService.getReports().filter(r => r.id !== id);
-    localStorage.setItem(DB_KEY_REPORTS, JSON.stringify(reports));
+  deleteBusiness: async (id: string) => {
+    if (!supabase) throw new Error("Database not connected");
+    const { error } = await supabase.from('businesses').delete().eq('id', id);
+    if (error) throw error;
   },
 
-  getBroadcasts: (): Broadcast[] => {
-    const data = localStorage.getItem(DB_KEY_BROADCASTS);
-    return data ? JSON.parse(data) : [];
+  getReports: async (): Promise<Report[]> => {
+    if (!supabase) return [];
+    const { data } = await supabase.from('reports').select('*').order('created_at', { ascending: false });
+    return (data as any[] || []).map(r => ({
+      ...r,
+      businessId: r.business_id,
+      businessName: r.business_name,
+      createdAt: new Date(r.created_at).getTime()
+    }));
   },
 
-  addBroadcast: (broadcast: Omit<Broadcast, 'id' | 'createdAt'>) => {
-    const broadcasts = dbService.getBroadcasts();
-    const newBroadcast: Broadcast = {
-      ...broadcast,
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: Date.now()
-    };
-    broadcasts.unshift(newBroadcast);
-    localStorage.setItem(DB_KEY_BROADCASTS, JSON.stringify(broadcasts));
+  addReport: async (report: any) => {
+    if (!supabase) return;
+    await supabase.from('reports').insert([{
+      business_id: report.businessId,
+      business_name: report.businessName,
+      reason: report.reason
+    }]);
   },
 
-  deleteBroadcast: (id: string) => {
-    const broadcasts = dbService.getBroadcasts().filter(b => b.id !== id);
-    localStorage.setItem(DB_KEY_BROADCASTS, JSON.stringify(broadcasts));
+  resolveReport: async (id: string) => {
+    if (!supabase) return;
+    const { error } = await supabase.from('reports').update({ status: 'RESOLVED' }).eq('id', id);
+    if (error) throw error;
   },
 
-  incrementClick: (id: string) => {
-    const businesses = dbService.getBusinesses();
-    const b = businesses.find(item => item.id === id);
-    if (b) {
-      b.clickCount = (b.clickCount || 0) + 1;
-      localStorage.setItem(DB_KEY_BUSINESSES, JSON.stringify(businesses));
+  getBroadcasts: async (): Promise<Broadcast[]> => {
+    if (!supabase) return [];
+    const { data } = await supabase.from('broadcasts').select('*').order('created_at', { ascending: false });
+    return (data as any[] || []).map(b => ({
+      ...b,
+      createdAt: new Date(b.created_at).getTime()
+    }));
+  },
+
+  addBroadcast: async (broadcast: any) => {
+    if (!supabase) return;
+    const { error } = await supabase.from('broadcasts').insert([broadcast]);
+    if (error) throw error;
+  },
+
+  deleteBroadcast: async (id: string) => {
+    if (!supabase) return;
+    const { error } = await supabase.from('broadcasts').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  incrementClick: async (id: string) => {
+    if (!supabase) return;
+    const { data } = await supabase.from('businesses').select('click_count').eq('id', id).single();
+    if (data) {
+      await supabase.from('businesses').update({ click_count: (data.click_count || 0) + 1 }).eq('id', id);
     }
   }
 };
