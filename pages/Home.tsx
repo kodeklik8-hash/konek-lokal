@@ -11,8 +11,13 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState<Business[]>([]);
   const navigate = useNavigate();
 
+  // Fix: dbService.getBroadcasts() returns a Promise, so it must be awaited
   useEffect(() => {
-    setBroadcasts(dbService.getBroadcasts());
+    const fetchBroadcasts = async () => {
+      const data = await dbService.getBroadcasts();
+      setBroadcasts(data);
+    };
+    fetchBroadcasts();
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {

@@ -18,19 +18,24 @@ export default function CategoryDetail() {
 
   const category = CATEGORIES.find(c => c.name === catName);
 
+  // Fix: dbService.getBusinesses() returns a Promise, so it must be awaited before filtering.
   useEffect(() => {
-    const data = dbService.getBusinesses().filter(b => b.category === catName);
-    setBusinesses(data);
-    
-    let res = data;
-    if (query) {
-      res = res.filter(b => 
-        b.name.toLowerCase().includes(query.toLowerCase()) ||
-        b.description.toLowerCase().includes(query.toLowerCase()) ||
-        b.tags.some(t => t.toLowerCase().includes(query.toLowerCase()))
-      );
-    }
-    setFiltered(res);
+    const fetchData = async () => {
+      const allData = await dbService.getBusinesses();
+      const data = allData.filter(b => b.category === catName);
+      setBusinesses(data);
+      
+      let res = data;
+      if (query) {
+        res = res.filter(b => 
+          b.name.toLowerCase().includes(query.toLowerCase()) ||
+          b.description.toLowerCase().includes(query.toLowerCase()) ||
+          b.tags.some(t => t.toLowerCase().includes(query.toLowerCase()))
+        );
+      }
+      setFiltered(res);
+    };
+    fetchData();
   }, [catName, query]);
 
   const handleSubFilter = (sub: string) => {

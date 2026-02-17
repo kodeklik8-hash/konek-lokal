@@ -14,11 +14,15 @@ export default function Admin() {
   const [reports, setReports] = useState<Report[]>([]);
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
 
+  // Fix: dbService methods return Promises, so they must be awaited
   useEffect(() => {
     if (isLoggedIn) {
-      setBusinesses(dbService.getBusinesses());
-      setReports(dbService.getReports());
-      setBroadcasts(dbService.getBroadcasts());
+      const fetchData = async () => {
+        setBusinesses(await dbService.getBusinesses());
+        setReports(await dbService.getReports());
+        setBroadcasts(await dbService.getBroadcasts());
+      };
+      fetchData();
     }
   }, [isLoggedIn]);
 
@@ -31,30 +35,32 @@ export default function Admin() {
     }
   };
 
-  const handleAddBroadcast = (e: React.FormEvent) => {
+  const handleAddBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     const target = e.target as any;
-    dbService.addBroadcast({
+    await dbService.addBroadcast({
       title: target.title.value,
       description: target.desc.value,
       source: target.source.value,
       link: target.link.value
     });
-    setBroadcasts(dbService.getBroadcasts());
+    setBroadcasts(await dbService.getBroadcasts());
     target.reset();
     alert('Broadcast ditambahkan!');
   };
 
-  const deleteBusiness = (id: string) => {
+  // Fix: deleteBusiness now exists in dbService and is awaited
+  const deleteBusiness = async (id: string) => {
     if (window.confirm('Hapus data ini?')) {
-      dbService.deleteBusiness(id);
-      setBusinesses(dbService.getBusinesses());
+      await dbService.deleteBusiness(id);
+      setBusinesses(await dbService.getBusinesses());
     }
   };
 
-  const resolveReport = (id: string) => {
-    dbService.resolveReport(id);
-    setReports(dbService.getReports());
+  // Fix: resolveReport now exists in dbService and is awaited
+  const resolveReport = async (id: string) => {
+    await dbService.resolveReport(id);
+    setReports(await dbService.getReports());
   };
 
   if (!isLoggedIn) {
@@ -170,9 +176,12 @@ export default function Admin() {
                   <h4 className="font-bold">{b.title}</h4>
                   <p className="text-xs text-gray-500 mt-1">{b.source}</p>
                 </div>
-                <button onClick={() => {
-                  dbService.deleteBroadcast(b.id);
-                  setBroadcasts(dbService.getBroadcasts());
+                {/* Fix: deleteBroadcast now exists in dbService and is awaited */}
+                <button onClick={async () => {
+                  if (window.confirm('Hapus broadcast ini?')) {
+                    await dbService.deleteBroadcast(b.id);
+                    setBroadcasts(await dbService.getBroadcasts());
+                  }
                 }} className="text-red-500 text-xs font-bold">Hapus</button>
               </div>
             ))}
